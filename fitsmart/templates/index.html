@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>FitSmart AI — Personal Fitness Plan Generator</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+  <!-- Google Fonts: Outfit (display) + DM Sans (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;600;800&family=DM+Sans:wght@400;500&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- Background decorative blobs -->
+  <div class="blob blob-1"></div>
+  <div class="blob blob-2"></div>
+  <div class="blob blob-3"></div>
+
+  <div class="page-wrapper">
+
+    <!-- ── HEADER ── -->
+    <header class="site-header">
+      <div class="logo-mark">⚡</div>
+      <div>
+        <h1 class="site-title">FitSmart <span class="accent">AI</span></h1>
+        <p class="site-tagline">Your Personal AI Fitness Coach</p>
+      </div>
+    </header>
+
+    <!-- ── HERO COPY ── -->
+    <section class="hero">
+      <p class="hero-sub">
+        Tell us a little about yourself and Gemini AI will craft a
+        <strong>personalised, beginner-safe weekly fitness plan</strong>
+        in seconds — completely free.
+      </p>
+    </section>
+
+    <!-- ── FORM CARD ── -->
+    <main class="card form-card">
+      <h2 class="card-title">Build My Plan</h2>
+
+      <form id="fitnessForm" novalidate>
+
+        <!-- Row 1: Age + Gender -->
+        <div class="form-row">
+          <div class="form-group">
+            <label for="age">Age <span class="required">*</span></label>
+            <input
+              type="number"
+              id="age"
+              name="age"
+              min="10"
+              max="100"
+              placeholder="e.g. 28"
+              required
+            />
+          </div>
+
+          <div class="form-group">
+            <label for="gender">Gender <span class="required">*</span></label>
+            <select id="gender" name="gender" required>
+              <option value="">Select…</option>
+              <option value="male">Male</option>
+              <option value="female">Female</option>
+              <option value="non-binary">Non-binary</option>
+              <option value="prefer not to say">Prefer not to say</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Row 2: Fitness Goal -->
+        <div class="form-group">
+          <label for="goal">Fitness Goal <span class="required">*</span></label>
+          <select id="goal" name="goal" required>
+            <option value="">Select your goal…</option>
+            <option value="weight loss">⚖️  Weight Loss</option>
+            <option value="muscle gain">💪  Muscle Gain</option>
+            <option value="general fitness">🏃  General Fitness</option>
+          </select>
+        </div>
+
+        <!-- Row 3: Workout Preference -->
+        <div class="form-group">
+          <label>Workout Preference <span class="required">*</span></label>
+          <div class="chip-group" id="preference">
+            <label class="chip">
+              <input type="radio" name="preference" value="home" /> 🏠 Home
+            </label>
+            <label class="chip">
+              <input type="radio" name="preference" value="gym" /> 🏋️ Gym
+            </label>
+            <label class="chip">
+              <input type="radio" name="preference" value="yoga" /> 🧘 Yoga
+            </label>
+            <label class="chip">
+              <input type="radio" name="preference" value="cardio" /> 🚴 Cardio
+            </label>
+          </div>
+        </div>
+
+        <!-- Row 4: Time per day -->
+        <div class="form-group">
+          <label for="time">
+            Available Time Per Day
+            <span class="required">*</span>
+            <span class="time-display" id="timeDisplay">30 min</span>
+          </label>
+          <input
+            type="range"
+            id="time"
+            name="time"
+            min="10"
+            max="120"
+            step="5"
+            value="30"
+            class="slider"
+          />
+          <div class="slider-labels">
+            <span>10 min</span><span>120 min</span>
+          </div>
+        </div>
+
+        <!-- Error banner (hidden by default) -->
+        <div class="error-banner" id="errorBanner" role="alert" hidden>
+          ⚠️ <span id="errorMessage"></span>
+        </div>
+
+        <!-- Submit -->
+        <button type="submit" class="btn-primary" id="submitBtn">
+          <span class="btn-text">Generate My Fitness Plan ✨</span>
+          <span class="spinner" id="spinner" hidden></span>
+        </button>
+
+      </form>
+    </main>
+
+    <!-- ── RESULT SECTION (injected here dynamically) ── -->
+    <div id="resultContainer"></div>
+
+    <footer class="site-footer">
+      Powered by <strong>Google Gemini</strong> · Built with Flask &amp; ❤️
+    </footer>
+
+  </div><!-- /page-wrapper -->
+
+  <script>
+    /* ── Time slider display ── */
+    const slider      = document.getElementById("time");
+    const timeDisplay = document.getElementById("timeDisplay");
+    slider.addEventListener("input", () => {
+      timeDisplay.textContent = slider.value + " min";
+    });
+
+    /* ── Chip active state ── */
+    document.querySelectorAll('.chip input[type="radio"]').forEach(radio => {
+      radio.addEventListener("change", () => {
+        document.querySelectorAll(".chip").forEach(c => c.classList.remove("active"));
+        radio.parentElement.classList.add("active");
+      });
+    });
+
+    /* ── Form submission ── */
+    const form        = document.getElementById("fitnessForm");
+    const submitBtn   = document.getElementById("submitBtn");
+    const spinner     = document.getElementById("spinner");
+    const btnText     = document.querySelector(".btn-text");
+    const errorBanner = document.getElementById("errorBanner");
+    const errorMsg    = document.getElementById("errorMessage");
+    const resultBox   = document.getElementById("resultContainer");
+
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      errorBanner.hidden = true;
+
+      // Collect values
+      const age        = document.getElementById("age").value.trim();
+      const gender     = document.getElementById("gender").value;
+      const goal       = document.getElementById("goal").value;
+      const prefRadio  = document.querySelector('input[name="preference"]:checked');
+      const time       = slider.value;
+
+      // Client-side validation
+      if (!age || !gender || !goal || !prefRadio) {
+        errorMsg.textContent = "Please fill in all fields before generating your plan.";
+        errorBanner.hidden = false;
+        errorBanner.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+
+      // Show loading state
+      submitBtn.disabled = true;
+      btnText.textContent = "Generating…";
+      spinner.hidden = false;
+      resultBox.innerHTML = "";
+
+      try {
+        const response = await fetch("/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            age, gender, goal,
+            preference: prefRadio.value,
+            time
+          })
+        });
+
+        const data = await response.json();
+
+        if (data.error) {
+          throw new Error(data.error);
+        }
+
+        // Render result card
+        resultBox.innerHTML = renderPlanCard(data.plan, { age, gender, goal, preference: prefRadio.value, time });
+        resultBox.scrollIntoView({ behavior: "smooth" });
+
+      } catch (err) {
+        errorMsg.textContent = err.message || "Something went wrong. Please try again.";
+        errorBanner.hidden = false;
+      } finally {
+        submitBtn.disabled = false;
+        btnText.textContent = "Generate My Fitness Plan ✨";
+        spinner.hidden = true;
+      }
+    });
+
+    /* ── Render the returned plan into a styled card ── */
+    function renderPlanCard(planText, info) {
+      // Convert markdown-ish text to styled HTML
+      const html = planText
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(/^#{1,3} (.+)$/gm, "<h3 class='plan-heading'>$1</h3>")
+        .replace(/^\* (.+)$/gm, "<li>$1</li>")
+        .replace(/(<li>.*<\/li>)/gs, "<ul>$1</ul>")
+        .replace(/\n{2,}/g, "</p><p>")
+        .replace(/^(?!<[hul])(.+)$/gm, "$1");
+
+      return `
+        <div class="card result-card" id="planCard">
+          <div class="result-header">
+            <div class="result-icon">🏆</div>
+            <div>
+              <h2 class="result-title">Your Personalised Fitness Plan</h2>
+              <p class="result-meta">
+                ${info.age} yrs · ${info.gender} · ${info.goal} · ${info.preference} · ${info.time} min/day
+              </p>
+            </div>
+          </div>
+          <div class="plan-body">
+            <p>${html}</p>
+          </div>
+          <button class="btn-secondary" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        </div>
+      `;
+    }
+  </script>
+
+</body>
+</html>
